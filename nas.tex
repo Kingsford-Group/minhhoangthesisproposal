@@ -1,0 +1,158 @@
+\label{c5:nas}
+\section{Problem setting}
+Neural network architecture is the core element of deep learning's success on many perceptual tasks such as computer vision~\cite{lecun2015lenet} and natural language processing~\cite{vaswani2017attention}. Even though most renowned architectures in deep learning literature are hand-designed by domain experts, recent studies~\cite{zoph2016,hu2020,xie2018} have suggested that searching for an optimal design that composes well-known building blocks can significantly improve performances in many task domains. Formally, a neural network architecture can be written as a hierarchical feature extractor which explicitly takes the form of a directed acyclic graph $G\triangleq(V, E)$, where $V$ and $E$ respectively denote the sets of nodes and edges in $G$. Each node $v\in V$ denotes an intermediate feature representation $z_v$, which has been arbitrarily transformed from some input $\mathbf{x} \in \mathbb{R}^d$. We often associate $\mathbf{x}$ and the output of the network with a source node $v_s$ and a sink node $v_t$, respectively. Each edge $e \equiv (v,v') \in E$ encodes an operator $o_e$ that transforms $z_v$ and forwards the result to $v'$ to be aggregated as $z_{v'}$. The computation of any intermediate representation in $G$ can then be recursively defined as:
+\begin{eqnarray}
+z_{v'} \triangleq \sum_{(v, v') \in E} o_{(v,v')}(z_v) \ ,
+\end{eqnarray} 
+where we have assumed a simple additive aggregation rule for simplicity. 
+
+In a typical neural architecture search task, there are two design choices to be made: (1) the flow of information determined by the topology of $G$; and (2) the corresponding transformations of data features encoded by the edge operators $o_e$ for every $e \in E$. To ensure feasibility, the space of edge operators is often restricted to a small, finite set $\mathcal{O}$ of well-known layers, such as linear transformation, convolution and pooling, thus reducing the problem to finding an optimal mapping $m: E \rightarrow \mathcal{O}$ that assigns an operator in $\mathcal{O}$ for every edge. Similar to the setting of the kernel selection problem, we are also interested in only representing the \emph{categorical types} of these layers in $\mathcal{O}$, which do not include specific parameters whose optimization is well studied (i.e., layer weights) or must be chosen to ensure the mathematical consistency of the network (i.e., layer dimensions). In particular, given a selected layer type, the learning/setting of these parameters is implicitly incorporated into the performance measuring function.
+
+On the other hand, designing the search space for $G$ is still an active research direction in which no conclusive insight has been reached regarding the best instantiation. This thesis thus focuses on a common practice proposed by~\citet{bender2018understanding}, which uses an over-parameterized graph $\mathcal{G}=(\mathcal{V},\mathcal{E})$ to implicitly define this space. That is, a candidate graph $G=(V, E)$ can be obtained by selecting subsets of nodes $V \subseteq \mathcal{V}$ and edges $E \subseteq \mathcal{E}$ such that $G$ is connected and contains both the source node $v_s$ and sink node $v_t$. We note that this pruning step can be trivially modelled by including a null layer in $\mathcal{O}$, which outputs zero regardless of the input feature, such that whenever this layer is selected, the edge it represents is considered inactive in the candidate graph. Finally, the neural architecture search problem on an overparameterized search space can be described as follows:
+
+\begin{definition} [Neural Architecture Search]
+Let $\tau \triangleq \{\mathcal{G},\mathcal{O},\mathcal{D}\}$ describe a neural architecture search task where $\mathcal{G}=(\mathcal{V},\mathcal{E})$ denotes an over-parameterized computation graph; $\mathcal{O}$ denotes the set of all edge operators; and $\mathcal{D}$ is the provided observations (i.e., train/validation/test data). We further let $\mathcal{M}$ be the set of all mappings $m: \mathcal{E} \rightarrow \mathcal{O}$ that assign a feature mapper for every edge in $\mathcal{G}$, thus inducing a unique architecture. Finally, let $F_\tau: \mathcal{M} \rightarrow \mathbb{R}$ be the performance measuring function of this task, which (1)~executes a well-defined algorithmic procedure to optimize the parameters of the selected operators (e.g., applying gradient descent update with respect to the cross-entropy loss until convergence) and (2)~returns the predictive accuracy evaluated on the test set. Then, the neural architecture search problem is succinctly stated as:
+\begin{eqnarray}
+m_\ast &=& \underset{m \in \mathcal{M}}{\mathrm{argmax}} \  F_\tau(m) \ ,
+\end{eqnarray}
+where $m_\ast$ denotes the optimally performing assignment function with respect to $\tau$.
+\label{c4-def:nasproblem}
+\end{definition}
+We note that the problem statement above is specifically written for a single-task scenario, for which only one instance of $\tau$ requires optimal configuration. In this thesis, we further consider a new setting for neural architecture search, which focuses on concurrently configuring a set of $n$ related tasks $\boldsymbol{\tau} \triangleq \{\tau_1, \tau_2 \dots \tau_n\}$. We state the problem as follows:
+
+\begin{definition} [Multi-task Neural Architecture Search]
+Let $\boldsymbol{\tau} \triangleq \{\tau_1, \tau_2 \dots \tau_n\}$ be a set of neural architecture search tasks such that every task $\tau_i \triangleq \{\mathcal{G},\mathcal{O},\mathcal{D}_i\}$ shares the same search space $\mathcal{G}$ and the operator set $\mathcal{O}$, but differs from one another by the given task data $\mathcal{D}_i$.
+Using the same notation of $\mathcal{M}$ in Definition~\ref{c4-def:nasproblem} and let $\mathbf{m} = \{m_1, m_2 \dots m_n\}$ be a collection of mappers in $\mathcal{M}$, where each $m_i$ corresponds to a candidate architecture for task $\tau_i$. The performance measuring function for the multi-task NAS problem is then given by averaging the per-task performance:
+\begin{eqnarray}
+F_{\boldsymbol{\tau}}(\mathbf{m}) &\triangleq& \frac{1}{n}\sum_{i=1}^n  F_{\tau_i}(m_i) \ .
+\end{eqnarray}
+Finally, we state the multi-task NAS objective as the following optimization task:
+\begin{eqnarray}
+\mathbf{m}_\ast &=& \underset{\mathbf{m} \subset \mathcal{M}}{\mathrm{argmax}} \  F_{\boldsymbol{\tau}}(\mathbf{m}) \ .
+\end{eqnarray}
+\label{c4-def:horizontalnas}
+\end{definition}
+
+\section{Related work}
+The NAS literature can generally be classified into two separate lines of research: (1) search space design and (2) search strategy. As briefly mentioned above, this thesis will adopt the over-parameterized search space proposed by~\citet{bender2018understanding} and focus on developing new search strategies under this paradigm. This section provides a brief summary of various NAS methods in this direction (which we will simply refer to as NAS from this point onward) and some preliminary works in the multi-task NAS domain.
+\subsection{Cell-based over-parameterized search space}
+Most NAS methods converge on a cell-based organization of the over-parameterized network search space that was inspired by~\citet{pham2018}. This entails factoring the search space graph $\mathcal{G}$ into a linear chain of modular cell blocks, each serves as an over-parameterized network by itself. Every cell has its own source and sink node, which respectively receives the output of its previous cell and forwards its own output to the next cell. The NAS outcome is then the combined edge selection for all cells in $\mathcal{G}$, which is then achieved by specific search strategies.
+
+\subsection{Scheduled dropout}
+One major challenge of NAS is the expensive cost of evaluating candidate architectures, which involves sufficient training of the selected layer weights. \citet{bender2018understanding}~proposes to isolate this bottleneck from the performance measuring function through optimizing the entire over-parameterized network $\mathcal{G}$ once before conducting edge selection, thus avoiding the repeated training cost. The cost and the stability of optimizing such a giant model are kept manageable via a steadily increasing dropout rate (i.e., the probability of zeroing out the output of a neuron) as the training progresses. \citet{bender2018understanding}~conducts random search to find the best pruning of the trained $\mathcal{G}$, but this step can easily be extended with other black-box optimization methods.
+\subsection{Continuous relaxation}
+A main cause for inefficiency in NAS is often due to the intractability of the edge selection problem, which can be written as a high-dimensional integer programming objective. Explicitly, we cast the output domain of the mapping function $m$ as the space of one-hot vectors with dimension $|\mathcal{O}|$ and express the computation at edge $e=(v,v')$ as:
+\begin{eqnarray}
+z_{v'} &=& \sum_{i=1}^{|\mathcal{O}|} m_i(e) \cdot o_i(z_v) \ ,
+\label{discrete-edge}
+\end{eqnarray}
+where $o_i$ denotes the $i^{\text{th}}$ operator in $\mathcal{O}$, $m_i(e) \in \{0, 1\}$ denotes the $i^{\text{th}}$ entry of the one-hot vector $m(e)$, i.e., $\sum_{i=1}^{|\mathcal{O}|} m_i(e) = 1$.~\citet{liu2018darts} then proposes the to alleviate this problem via approximating $m(e)$ with a continuous vector $\bar{m}(e) \in \mathbb{R}^{|\mathcal{O}|}$, called the \textit{operator mixing weights} of $e$. We can then rewrite the above computation using a softmax operator:
+\begin{eqnarray}
+z_{v'} &\simeq& \sum_{i=1}^{|\mathcal{O}|} \frac{\mathrm{exp}(\bar{m}_i(e))}{\sum_{j=1}^{|\mathcal{O}|}\mathrm{exp}(\bar{m}_j(e))} \cdot o_i(z_v) \ .
+\label{darts}
+\end{eqnarray}
+In this manner, the computation induced by any candidate architecture can be expressed entirely with continuous transformations that are fully differentiable with respect to all $\{\bar{m}(e)\}_{e\in\mathcal{E}}$ and the corresponding layer weights, hence reducing the NAS problem to a gradient-based optimization task.~\citet{xie2018} subsequently proposes a similar approach that instead replaces the softmax operator in Eq.~\eqref{darts} with a Gumbel-softmax operator~\cite{jang2016}, thus obtaining candidate architectures with mixing weights that converge to samples of a categorical distribution (i.e., when its temperature parameter is annealed to $0$), which better approximates Eq.~\eqref{discrete-edge}. \citet{hu2020}~further exploits this set up to perform differentiable edge sampling using the straight-through trick~\cite{jang2016}, thus avoids the expensive cost of training all layer weights at once.
+
+\subsubsection{Federated NAS}
+More recently, the NAS problem is also considered in the federated learning context~\cite{McMahan17}. This line of research  studies a variant of the multi-task NAS problem introduced above, where the task data $\mathcal{D}_i$ are assumed to be privately hosted and cannot leave their respective silos. To address this problem,~\citet{he2020fednas}~adopts the differentiable framework by~\citet{liu2018darts} to perform local NAS for each task $\tau_i$ and periodically synchronizes these local architectures via averaging both their operator mixing weights and layer weights. Nonetheless, we note that this aggregation scheme will mandate all local nodes to converge at a single architecture, which is not necessarily optimal when their respective tasks are heterogeneous. We will therefore focus on solving exactly the multi-task NAS objective given in Definition~\ref{c4-def:horizontalnas}, which instead seeks to efficiently optimize an entire collection of architectures to optimally address each task.
+
+\section{Motivation}
+This section now focuses on a new framework to address the \emph{multi-task} NAS problem introduced above, particularly in the federated learning (FL) setting~\cite{McMahan17} where task data are not allowed to leave its computing node. While this seems like a straight-forward extension of the \emph{single-task} NAS problem in Definition~\ref{c4-def:nasproblem}, na\"ively applying \emph{single-task} NAS frameworks multiple time on each target task is often a prohibitively expensive strategy. In addition, independently executing these \emph{single-task} NAS instances also implies poor utilization of available information, especially when the target tasks are correlated. Although combining local information will trivially enable knowledge sharing among tasks, this strategy is not applicable to the FL setting due to its inability to preserve data privacy.
+
+To address this problem scenario, the next immediate approach is to  apply existing FL strategies on the \emph{single-task} NAS objective to construct a privacy-preserving optimization scheme that combines knowledge across computing nodes. Generally, the FL-NAS objective can be stated as:
+\begin{eqnarray}
+F_{\tau}(m) &\triangleq& \frac{1}{n}\sum_{i=1}^n F_{\tau_i}(m) \ ,
+\label{fedobj}
+\end{eqnarray}
+where $m$ denotes a candidate architecture, represented as in Definition~\ref{c4-def:nasproblem} and $F_{\tau_i}$ denotes the performance measuring function for client $i$. We note that this objective is slightly different from the \emph{multi-task} objective given in  Definition~\ref{c4-def:horizontalnas}, as it assumes a single architecture 
+$m$ will suffice for all participating clients. This is, however, often sub-optimal for situations where tasks are not highly correlated~\citep{lam2021model,hoang2020learning, yurochkin2019statistical}. To address this limitation, a common approach is to locally fine-tune the obtained architecture using private data until the personalized architectures can sufficiently address their respective tasks. The cost of doing so, however, might vary from client to client as the FL-NAS objective does not take into account the distance between each task-specific optimal architecture and the consensus architecture on the candidate manifold. More explicitly, there might exist an architecture that does not minimize the above objective, but has significantly larger margins of improvement upon fine-tuning with task-specific data.
+
+Orthogonal to the NAS domain, multi-task learning has previously been considered by the meta learning framework~\cite{Finn17, Fallah20} to rectify the above problem in a general optimization setting. This is achieved via explicitly accounting for subsequent fine-tuning steps in the objective. Explicitly, applying this framework, Eq.~\eqref{fedobj} can be adapted as: 
+\begin{eqnarray}
+F_{\tau}(m) &\triangleq& \frac{1}{n}\sum_{i=1}^n F_{\tau_i}\left(m - \lambda\nabla_m F_{\tau_i}(m)\right) \ ,
+\label{metaobj}
+\end{eqnarray}
+in which each local model instead anticipates the performance of the candidate architecture with one additional gradient update step $\lambda\nabla_m F_{\tau_i}(m)$. This anticipation guides the discovery of architecture with larger improvement margins. However, optimizing Eq.~\eqref{metaobj} with standard gradient-based approaches will require computing the computationally expensive Hessian term $\nabla^2_m F_{\tau_i}(m)$, where $m$ comprises the weights of all cells in the over-parameterized network. 
+
+To address this shortcoming, we propose a new algorithm which extends Eq.~\eqref{metaobj} with two key ideas. First, we propose a more practical knowledge organization, which factorizes the cell-based over-parameterized network into two disjoint components called the base stack and the personalized stack respectively. The base stack contains the majority of cells in the search space and is tasked to learn a common data embedding that is useful to all tasks. On the other hand, the personalized stack contains the remaining cells and is designated as the architecture component to be personalized by each local task. This hierarchical assumption helps to significantly reduce the computational cost of the meta-learning update, since the second-order gradient computation is now confined to a small fraction of the weight vector.
+
+To compensate for the reduced expressiveness of the personalization step, we further introduce a more fine-grained personalization scheme which will enable architectures to be recommended on a \emph{per-input} basis. In particular, we propose a modification of the continuous relaxation scheme for over-parameterized search space NAS, in which each edge-wise operator mixing weights are explicitly conditioned on the input vector (or batch input tensor) via a parameterized mapping function. A key advantage of this context-aware design is that it implicitly addresses the personalization scenario where the target tasks are related through an overlapping mode of their data distribution. For example, consider a scenario with two handwritten digit classification tasks with many overlapping labels (e.g., classifying digits $\{1,3,5\}$ vs. $\{3,5,7\}$), in which it will be intuitively information-efficient for both tasks to share a similar architecture that can distinguish between label $3$ and $5$. 
+
+\section{Technical Approach}
+Our method, $\textsc{FedPNAS}$, adopts a similar over-parameterized architecture space and continuous relaxation approach as suggested by~\citet{hu2020}. As motivated above, we further seek to facilitate efficient personalization via factorizing the architecture space into: (1) a base component that is shared among all client models; and (2) a personalized component, which will be adapted to specifically address each task. An overview of our architecture space is given below in Fig.~\ref{c4-fig:architecture} and its full specification is described in Appendix~\ref{app:nas}. Each candidate architecture in this space is fully specified by the concatenated layer weights $W$ of the over-parameterized architecture and the concatenated operator mixing weights $\Pi$ (i.e., combining over all cells and edges). In our formulation, $\Pi$ is in turn specified by a collection of edge-wise mapping functions that compute a mixing weight vector given the initial input. For clarity, we use the notations $m \equiv (W, \Pi) \equiv (W_b, W_p, \Pi_b, \Pi_p)$ to reflect the search space factorization, where $(W_b, \Pi_b)$ and $(W_p, \Pi_p)$ denote all trainable parameters in the base component and personalized component respectively. For convenience, we additionally define $\theta_b=(W_b, \Pi_b)$ and $\theta_p=(W_p, \Pi_p)$.
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}
+\node[io] (x) {$x$};
+\node[group, minimum height=2.5em, minimum width=3em, right=1.5em of x] (b1) {$G_b^1$};
+\node[group, minimum height = 5em, minimum width = 19em, right = 0.5em of x] (basestack) {};
+\node[group, minimum height=2.5em, minimum width=3em, right=1.5em of b1] (b2) {$G_b^2$};
+\node[group, minimum height=2.5em, minimum width=3em, right=1.5em of b2] (bdots) {\dots};
+\node[above=1.5em of bdots] (invi2) {};
+\node[right=0.5em of invi2] (invi) {};
+\node[group, minimum height=2.5em, minimum width=3em, right=1.5em of bdots] (bc) {$G_b^{C_b}$};
+\node[io, below=4em of x] (psix) {$G(x)$};
+\node[group, minimum height = 5em, minimum width = 19em, right = 0.5em of psix] (specstack) {};
+\node[group, minimum height=2.5em, minimum width=3em, right=1.5em of psix] (pc) {$G_p^{C_p}$};
+\node[group, minimum height=2.5em, minimum width=3em, right=1.5em of pc] (pdots) {\dots};
+\node[group, minimum height=2.5em, minimum width=3em, right=1.5em of pdots] (p2) {$G_p^{2}$};
+\node[group, minimum height=2.5em, minimum width=3em, right=1.5em of p2] (p1) {$G_p^{1}$};
+%\node[group2, minimum height=4.5em, minimum width=20em, right=1.1em of x] (bstack) {};
+%\node[group2, minimum height=4.5em, minimum width=20em, right=1.1em of psix] (pstack) {};
+\draw[conn] (x)--(b1);
+\draw[conn] (b1)--(b2);
+\draw[conn] (b2)--(bdots);
+\draw[conn] (bdots)--(bc);
+\draw[->] (x.north) to [out=45,in=90] (b2.north) node[above left=3.5em]{\tiny{\textsc{conv 1x1}}};
+\draw[->] (b1.north) to [out=45,in=90] (bdots.north) node[above left=3.5em]{\tiny{\textsc{conv 1x1}}};
+\draw[dashed,->] (invi.east) to [out=0,in=90] (bc.north) node[above left=3.5em]{\tiny{\textsc{conv 1x1}}};
+\draw[conn] (bc)--(p1);
+\draw[conn] (p1)--(p2);
+\draw[conn] (p2)--(pdots);
+\draw[conn] (pdots)--(pc);
+\draw[conn] (pc)--(psix);
+\end{tikzpicture}
+\caption{Feature mapping induced by the component stacks of our architecture space. Each cell in the base stack receives outputs from two previous cells, whereas each cell in the personalized stack receives outputs from only one previous cell.}
+\label{c4-fig:architecture}
+\end{figure}
+
+\noindent Our algorithm is then composed of a \emph{federated} phase and an \emph{adaptation} phase. In the \emph{federated} phase, we rewrite the Meta-NAS objective in Eq.~\eqref{metaobj} to reflect our factorized architecture space as:
+\begin{eqnarray}
+F_\tau(\theta_b, \theta_p) &\triangleq& \frac{1}{n} \sum F_{\tau_i}\left(\theta_b, \theta_p - \lambda\nabla_{\theta_p} F_{\tau_i}(\theta_b, \theta_p)\right) \ .
+\end{eqnarray}
+We then derive the gradient of this personalized NAS objective in Appendix~\ref{app:nas} and propose using a first-order Taylor approximation to efficiently estimate the Hessian terms that arise in the derivative. Subsequently, in the \emph{adaptation} phase, we fix the learned parameters $\theta_b$ of the base component and proceed to fine-tune the specific component for each task using iterative gradient descent update. That is:
+\begin{eqnarray}
+\theta^{t+1}_p(\tau_i) &\triangleq& \theta^{t+1}_p(\tau_i) - \lambda \nabla F_{\tau_i}\left(\theta^0_b, \theta^t_p(\tau_i)\right) \ ,
+\end{eqnarray}
+where $\theta^{t}_p(\tau_i)$ denotes the parameters of the specific component of task $\tau_i$ at the $t^{\text{th}}$ adaptation step and $\theta^{0}_p(\tau_i)$, $\theta^{0}_b$ denote the parameters obtained at the end of the \emph{federated} phase. To complete the specification of our algorithm, we further describe the context-aware mapping functions that generate operator mixing weights in Appendix~\ref{app:nas}.
+
+\section{Results}
+We compare against several different architecture search and federated learning benchmarks, such as \textsc{FedDSNAS}~\cite{he2020fednas} and \textsc{FedAvg}~\cite{McMahan17}. All of our empirical studies are conducted on two image
+recognition datasets: (a) the CIFAR-10 dataset~\cite{cifar10} which aims to predict image labels from 10 classes
+given a train/test set of 50000/10000 colour images of dimension 32 × 32 pixels; and (b) the MNIST
+dataset~\cite{lecun2010mnist} which aims to predict handwritten digits (i.e. 0 to 9) given a train/test set of 60000/10000
+grayscale images of dimension 28×28 pixels. We compare two variants of our framework, \textsc{CA-FedPNAS} (with context-aware
+operation sampler) and \textsc{FedPNAS} (without the operation sampler), against: (a) \textsc{FedAvg} of a
+fixed architecture to justify the need for NAS in FL; (b) \textsc{FedDSNAS} - which extends DSNAS
+to the FL setting; and finally (c) \textsc{CA-FedDSNAS}, which extends \textsc{FedDSNAS} with our
+context-aware sampler.
+
+To demonstrate the performance of \textsc{FedPNAS}, we conduct three empirical studies. First, we design a control experiment to test our framework on heterogeneous tasks and demonstrate the necessity of architecture personalization. We simulate this scenario via applying different transformations to each client dataset. We show that on both datasets, both methods with our context sampler \textsc{CA-FedPNAS} and \textsc{CA-FedDSNAS} converge much faster than
+their counterparts without the sampler component. The performance gap is significant on the more difficult \textsc{CIFAR-10} dataset. This shows that the contextual information helps to quickly locate regions of high-performing architectures, especially on
+similar inputs.
+
+Second, we investigate the respective performances of \textsc{CA-FedPNAS} and
+and \textsc{FedDSNAS} on tasks with varying levels of heterogeneity. We simulate this by using varying the complexity level of data transformations, such as small-angle rotations (easy) or hue jitter/large-angle rotations (hard). We observe that our method CA-FEDPNAS achieves better performance, especially on tasks with higher heterogeneity among clients. This clearly shows the importance of architecture personalization when the training tasks are significantly
+different and justifies our research goal.
+
+Finally, we assess the quality of the pre-adaptation architecture distributions
+respectively discovered by \textsc{CA-FedPNAS} and \textsc{FedDSNAS}. In particular, we use these learned
+distributions to generalize to
+completely unseen tasks (i.e., tasks that are not observed in the federated learning phase). To simulate
+this scenario, during the evaluation
+phase, however, we supply each local client with 2000 test images subjected to completely unseen transformations. \textsc{CA-FedPNAS} outperformed other benchmarks without any further finetuning, and this performance gap significantly increases only with $100$ iterations of retraining. This implies that \textsc{CA-FedPNAS} more accurately captured the broad similarity of the task spectrum and
+requires minimal additional information to successfully adapt to unseen tasks.
+
+The details of our empirical study is given in Appendix~\ref{app:nas}. Our work has been published to the New Frontiers in Federated Learning:
+Privacy, Fairness, Robustness, Personalization and Data Ownership (NFFL) workshop in the Conference on Neural Information Processing Systems (NeurIPS) 2021.

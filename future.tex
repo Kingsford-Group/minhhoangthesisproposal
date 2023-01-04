@@ -1,0 +1,37 @@
+\label{c6:future}
+\section{Other algorithmic selection problems for kernel-based methods}
+Orthogonal to the approach presented in this thesis, we have also investigated another algorithmic design problem for GP. The classical GP algorithm~\citep{Rasmussen06} trains and runs in $\mathcal{O}(n^3)$ complexity, where $n$ is the size of the training data. Due to this prohibitively expensive cost, many sparse approximations have been employed to improve the scalability of GP in practical use cases. These methods, which are broadly referred to as \textit{sparse GPs} (SGP), usually focus on optimizing a compact set of inducing data points which serve as sufficient statistics for the training data~\cite{Hoang14,Yarin15,Hensman13}. Nonetheless, there have been little study on how large should this inducing set be for the SGP predictions to closely approximate that of GP. 
+
+We developed a set of conditions for the training data such that the sparse spectrum GP (SSGP) method~\cite{Yarin15}, only need a compact inducing set (i.e., the set of spectral frequencies) to closely approximate GP prediction. This is the first theoretical study regarding the approximation quality of SSGP. Based on this theoretical understanding, we further develop a practical approach to \textit{recondition} the training data using a variational autoencoder (VAE) approach~\cite{Kingma13}. We showed that our VAE-transformed data exhibit the proposed conditions and achieve better sample complexity than vanilla SSGP. Our analysis and method has been published at the Conference on Neural Information Processing Systems (NeurIPS) 2020~\cite{hoang2020revisiting}.
+
+In addition, previous chapters have considered both architecture design for Artificial neural networks (ANN) and kernel design for Gaussian processes (GP). Recent work has shown that ANNs are equivalent to GP in the infinite-width limit, and that the evolution of an ANN during training can also be described by a neural tangent kernel (NTK)~\cite{jacot2018neural}. This provides a theoretical connection between two major domains of AAD and reveals a future direction on an unification approach for algorithmic design. 
+
+\section{Designing sequence sketches beyond the minimizer method}
+In Chapter~\ref{c4:minimizer}, we have considered the sketch design problem grounded in the minimizer~\citep{schleimer03,marcais17} approach. This has been extended to unify the syncmer approach~\citep{edgar2021syncmers,shaw2021theory} under the masked minimizers method, which is currently being peer reviewed for the conference on Research in Computational Molecular Biology (RECOMB) 2023~\cite{hoang2022masked}. In the remaining timeline of this dissertation, we will continue to investigate other algorithmic design problems in the sequence sketching domain. One example of such problems including configuring the local scheme~\cite{marcais18}, which employs a local $k$-mer ordering per $(w,k)$-window instead of a global ordering as in the minimizer approach. Alternatively, we also consider going beyond the $k$-mer sampling constraint, i.e., can we sketch the sequence using variable-sized substrings or continuous embedding that allows recovery of the original sequence?
+
+\section{Evolution-based meta learning for heterogeneous multi-task AAD}
+\label{c5:future}
+In Chapter~\ref{c5:nas}, we have considered the multi-task AAD scenario grounded in the Federated NAS problem. We showed that the meta-learning paradigm can be naturally extended to solve AAD optimization tasks with several practical improvements. However, this approach relies on the assumption that all tasks sampled from the given task distribution must be sufficiently similar, such that a single base model can be quickly adapted to solve each of them. In practice, such an assumption is often inappropriate given a long-tailed or multi-modal task distribution. In fact, high task diversity/heterogeneity has been shown to limit the performance of meta learning. For example, \citet{chen2021hetmaml,iwata2020meta}~have recently shown that standard meta learning is not effective on tasks with different feature spaces.
+
+To address this problem, existing approaches~\cite{chen2021hetmaml,iwata2020meta} employ various task embedding strategies to implicitly cluster sampled tasks into different localities of the task manifold. These task embedding modules, however, are solely learned from the sampled task data and are assumed to stay static throughout the meta learning step, hence do not account for subsequent updates of the meta model hypothesis. We instead argue that an accurate task clustering scheme must also account for the underlying function that generates the data, and therefore needs to be concurrently updated together with the learning model.
+
+In the remaining timeline of this thesis, we will investigate a new approach to address this learning scenario. Our preliminary idea is to adopt an evolving ensemble of meta-models to accurately reflect the multi-modality of the task landscape. Each meta model in the ensemble represents a prototype that implicitly defines a cluster of tasks. Cluster membership is then assigned based on a fitness metric that measures task similarity without learning an embedding. In particular, our fitness metric $F(\mathcal{T}, \mathcal{P})$ between a new task $\mathcal{T}$ and a prototype $\mathcal{P}$ will directly measure the agreement between the objective gradients of $\mathcal{T}$ and that of the previous tasks used to update $\mathcal{P}$. Intuitively, we hypothesize that $\mathcal{P}$ is fit to solve $\mathcal{T}$ when all gradients point in a similar direction, and is unfit otherwise. This fitness measures will determine which meta model will get to update with respect to an incoming batch of tasks. We also plan to devise a new evolutionary mechanism to replace obsolete meta models in the ensemble. Explicitly, analogous to a cross-over operator in evolutionary optimization, we will let meta models that are not frequently matched to new tasks distill knowledge from more successful models in the ensemble.
+
+\section{Thesis timeline}
+\begin{table}[ht]
+\centering
+\begin{tabular}{l|l}
+\textbf{Timeline}                     & \textbf{Milestones}                                      \\
+\hline
+November 2022               & Proposal Submission                            \\
+November 2022 - January 2023          & Revise Chapter~\ref{c4:minimizer} based on conference review    \\
+December - January 2022       & Proposal Presentation                          \\
+November 2022 - February 2023  & Conducting research direction proposed in Section~\ref{c5:future}                \\
+February 2023 & Submit research work to peer-review conference \\
+February 2023 - May 2023     & Thesis writing                                 \\
+Apr 2023 - May 2023          & Revise chapter~\ref{c5:nas} based on conference review    \\
+June 2023 - July 2023         & Thesis submission/defense   \\
+\hline
+\end{tabular}
+\caption{Proposed timeline of thesis}
+\end{table}

@@ -1,0 +1,119 @@
+\label{sec:analysis}
+\subsection{Revisiting performance metrics}
+\label{sec:metric}
+Let $(\mathcal{X}, r)$ be an arbitrary sampling scheme. As the set of conserved locations $\mathcal{X}(S)\cap\mathcal{X}(S')$ is always a subset of $\mathcal{X}(S)$ regardless of the mutations in $S'$, we have $\mathbb{E}_{S'}\left[|\mathcal{X}(S)\cap\mathcal{X}(S')|\right] \leq |\mathcal{X}(S)|$, and therefore $\mathcal{C}(S;\mathcal{X},r) \leq \mathcal{D}(S;\mathcal{X},r)$ for all $S$. Improving (lowering) density thus places an upper-bound on how much conservation can be improved and vice versa. This conflicting nature between the two objectives implies that neither should be considered independently of one another. To account for this trade-off, we propose a new metric called the \emph{generalized sketch score} (GSS), which is defined as follows:
+\begin{eqnarray}
+G(S; \mathcal{X}, r, w) & \triangleq & \frac{C(S;\mathcal{X},r)}{D(S;\mathcal{X},r)} \cdot \frac{1}{L_w} \sum_{i=1}^{L_w} V_i(S; \mathcal{X}; w) \nonumber \\
+&=& \frac{C(S; \mathcal{X}, r)}{D(S;\mathcal{X}, r)} \cdot \frac{1}{L_w} \sum_{i=1}^{L_w} \left(1 - \prod_{j=i}^{i+w-1} \mathbb{I}(j \not\in \mathcal{X}(S)) \right) \ ,
+\end{eqnarray}
+where $V_i(S;\mathcal{X}, w)$ is the indicator variable of the event $\kappa^{w_k}_i$ overlaps at least one sampled index in $\mathcal{X}(S)$. 
+
+Explicitly, our metric consists of two components. The first component, $C(S;\mathcal{X},r)/D(S;\mathcal{X},r)$, evaluates the \textit{relative conservation} and captures the inherent trade-off between the density and conservation metrics. Interestingly, this term also corresponds to measuring the number of conserved locations in $\mathcal{X}(S)\cap\mathcal{X}(S')$ relative to the number of sampled locations in the original sketch $\mathcal{X}(S)$:
+\begin{eqnarray}
+\frac{C(S;\mathcal{X}, r)}{D(S;\mathcal{X},r)} &=&
+\frac{\mathbb{E}_{S'}\left[|\mathcal{X}(S)\cap\mathcal{X}(S')|\right]}{L}\cdot\frac{L}{|\mathcal{X} (S)|} \nonumber \\
+&=& \frac{\mathbb{E}_{S'}\left[|\mathcal{X}(S)\cap\mathcal{X}(S')\right]}{|\mathcal{X}(S)|} \ .
+\end{eqnarray}
+
+\vspace{-1mm}
+As a metric, this term alone is, however, vulnerable to a simple exploit that trivially maximizes it. To see this, we first note that around each sampled location, there is a finite-length substring (i.e., context) in which a mutation can possibly alter the sampling outcome. With respect to the default reporting function, the context of a minimizer-sampled location is the union of all windows that contain it. The context of a syncmer-sampled location is the $k$-mer at the same position. Independent of the random mutations, the portion of the sequence in which mutations might induce an effect on the relative conservation metric is therefore bounded by the number of selected locations in $\mathcal{X}(S)$. The fewer locations sampled by $\mathcal{X}$ means a smaller probability for any mutation to occur in this conservation-sensitive portion of the sequence. 
+
+Naturally, if the sketch picks an unreasonably small number of locations, it is likely that the relative conservation term will be near perfect (i.e., close to $1$). One such scenario could theoretically occur with the syncmer setting, when $f_\pi(\kappa^s_i)$ is constructed such that the lowest scoring $s$-mer in every $k$-mer is always found within the first $t-1$ positions. When this happens, a large portion of the sequence is not represented by any $k$-mer, thus resulting in a meaningless sketch. We demonstrate that such a sampling behavior can be found via optimization in Section~\ref{sec:result}. To prevent this sub-optimal outcome, our second term $\sum_{i=1}^{L_w} V_i(S, \mathcal{X}; w)/L_w$ measures the \textit{coverage} of the sketch, or the fraction of $(w,k)$-windows that contains at least one sampled $k$-mer. When very few $k$-mers are selected, the resulting low coverage will apply a discount on the high relative conservation term, hence will discourage these trivial solutions.
+
+\vspace{-3mm}
+\subsection{Comparable minimizers and syncmers}
+\label{sec:comparability}
+Minimizer and syncmer schemes with similar $k$ are typically deemed comparable~\cite{edgar2021syncmers,shaw2021theory} since they both adopt the $k$-mer reporting function $r(i)=(\kappa^k_i, i)$. This notion of comparability, however, does not facilitate a theoretical analysis of their performance differences (i.e., in terms of density and conservation metrics), as different information bases are used to enact the sampling decisions of a length-$k$ minimizer and syncmer. In particular, $(w, k)$-minimizer schemes use total $k$-mer orderings to perform sampling, whereas $(k, s, t)$-syncmer schemes use total $s$-mer orderings, with $s \leq k$. These bases are only comparable when we set $s=k$, but doing so results in trivial a scheme that selects every $k$-mer in $S$. 
+
+% To correct this asymmetry of information, we propose to instead adopt a window reporting function for minimizer schemes, such as $r'(i) = (\omega^{w,k}_i, i)$, which was previously proposed by Schleimer et al.\@~\cite{schleimer03}. This simple change in the mode of reporting allows us to alternatively view $(k_s, s)$-minimizers as $k$-mer sampling schemes, which are comparable to $(k, s, t)$-syncmers as per the common perspective. Comparable schemes that are parameterized by the same ordering $\pi$, such as the $(k_s, s, \pi)$-minimizer scheme and $(k, s, t, \pi)$-syncmer schemes for all $t \leq k$, are more specifically termed $\pi$-comparable schemes. Choosing to compare $\pi$-comparable schemes, which share an invariant substring ranking behavior, further allows us to derive explicit bounds on their performance differences with respect to both density and conservation metrics. 
+
+To correct this asymmetry of information, we propose to compare $\pi$-comparable minimizers and syncmers, which are sketching schemes that employ the same total ordering $\pi$. For example, the $(w, k, \pi)$-minimizer and the $(w_k, k, t, \pi)$-syncmer schemes with $w_k\triangleq w+k-1$ and $t \leq w$, which respectively report $k$-mers and $w_k$-mers, are $\pi$-comparable. To work around their difference in representation, we further replace the default $w_k$-mer reporting function $r(i)=(\kappa^{w_k}_i, i)$ of the above syncmer scheme with the $k$-syncmer reporting function $r'(i)=(\kappa^k_{i+t}, i+t)$. As both functions are one-to-one mappings of the selected locations, this substitution results in a semantically equivalent \textit{shifted} syncmer scheme that reports all $k$-mers that are both lowest ranked and at the $t^{\text{th}}$ position in their respective $w_k$-mers.
+
+This translation of the reporting function aligns our proposed comparison with the traditional perspective of comparability and presents an invariant substring ranking behavior among the compared schemes, which subsequently allows us to derive explicit bounds on their density and conservation gaps. In particular, Proposition~\ref{prop:1} proves that the sketch of any syncmer is a subset of its $\pi$-comparable minimizer sketch. Corollary~\ref{cor:1} and Corollary~\ref{cor:2} further show that the density and conservation of any syncmer on $S$ are respectively upper-bounded and almost surely upper-bounded by that of its $\pi$-comparable minimizer, thus establishing the first theoretical correspondence between $\pi$-comparable schemes.
+
+\begin{proposition}
+Given $w, k \in \mathbb{N}$ and a total ordering $\pi$ defined on the set of all $k$-mers, we let $(w, k, \pi)$ and the reporting function $r(i)=(\kappa^k_i, i)$ define a minimizer scheme $(\mathcal{M}, r)$. Further let $(w_k,k,t,\pi)$ and $r'(i) \triangleq (\kappa^k_{i+t}, i+t)$ define a shifted syncmer scheme $(\mathcal{O}_t, r')$, such that $t \leq w$. Then, for all $S \in \Sigma^{L+k-1}$, we have $\mathcal{K}(S; \mathcal{O}_t, r') \subseteq \mathcal{K}(S; \mathcal{M}, r)$.
+\label{prop:1}
+\begin{proof} We first note that $\mathcal{O}_t$ will not sample any location $i$ such that $\kappa^k_{i+t}$, or the $t^{\text{th}}$ $k$-mer in $\kappa^{w_k}_i$, does not exist, hence $r'$ is well-defined. Then, by definition of $r$ and $r'$, it suffices to show that $i \in \mathcal{O}_t(S) \Rightarrow i + t \in \mathcal{M}(S)$ for all $i \in [L_w]$. As both schemes are parameterized by the same ordering $\pi$, we can express their respective sets of sampled locations using the same selector function $m_\pi$:
+\begin{eqnarray}
+\mathcal{M}(S) 
+= \{i + m_\pi(\kappa^{w_k}_i)\}_{i \in [L_w]} \quad
+\text{and} \quad 
+\mathcal{O}_t(S) 
+\ = \ \{i \mid m_\pi(\kappa^{w_k}_i) = t\}_{i \in [L_w]} .
+\end{eqnarray} 
+Therefore, for all $i\in [L_w]$, we have $i \in \mathcal{O}_t(S) \Rightarrow i + t = i + m_\pi(\kappa^{w_k}_i) \in \mathcal{M}(S)$.
+\end{proof}
+\end{proposition}
+\begin{corollary}[Density gap of $\pi$-comparable schemes] Let $(w_k,k,t,\pi, r')$ and $(w,k, \pi,r)$ define a pair of $\pi$-comparable shifted syncmer $(\mathcal{O}_t, r')$ and minimizer $(\mathcal{M}, r)$ schemes as described in Proposition~\ref{prop:1}, then for all $S \in \Sigma^{L+k-1}$, we have $D(S; \mathcal{O}_t, r') \leq D(S; \mathcal{M}, r)$. 
+\begin{proof}
+This follows directly from Proposition~\ref{prop:1}, which establishes that $\mathcal{K}(S; \mathcal{O}_t, r') \subseteq \mathcal{K}(S; \mathcal{M}, r)$. Thus, we have $D(S;\mathcal{O}_t,r') = |\mathcal{K}(S;\mathcal{O}_t,r')|/L \leq |\mathcal{K}(S;\mathcal{M},r)|/L = D(S;\mathcal{M},r)$.
+\end{proof}
+\label{cor:1}
+\end{corollary}
+\begin{corollary}[Conservation gap of $\pi$-comparable schemes] 
+ Let $(w_k,k,t,\pi, r')$ and $(w,k, \pi,r)$ define a pair of $\pi$-comparable shifted syncmer $(\mathcal{O}_t, r')$ and minimizer $(\mathcal{M}, r)$ schemes as described in Proposition~\ref{prop:1}, then for all $S \in \Sigma^{L+k-1}$, we have
+$C(S; \mathcal{O}_t, r') \leq  C(S; \mathcal{M}, r) + t/L$.
+\begin{proof}
+Fixing a mutation $S'$ and let $\mathcal{X}$ be an arbitrary location sampling function, we additionally define the indicator variable $\alpha_i(S', \mathcal{X}) \triangleq \mathbb{I}(i \in \mathcal{X}(S)\cap\mathcal{X}(S'))$ of the event that location $i$ is preserved across $\mathcal{X}(S)$ and $\mathcal{X}(S')$. We first give the following bound of $\alpha_i(S',\mathcal{O}_t)$ in terms of $\alpha_{i+t}(S',\mathcal{M})$:
+\begin{eqnarray}
+\alpha_i(S', \mathcal{O}_t) &=& \ \mathbb{I}(i \in \mathcal{O}_t(S))\times \mathbb{I}(i \in \mathcal{O}_t(S')) \nonumber \\
+\ &\leq& \ \mathbb{I}((i + t) \in \mathcal{M}(S)) \times \mathbb{I}((i + t) \in \mathcal{M}(S')) \nonumber \\
+\ &=& \ \alpha_{i+t}(S', \mathcal{M}) \ ,
+\label{eq:alpha}
+\end{eqnarray}
+where the inequality follows from Proposition~\ref{prop:1}, which establishes that $i \in \mathcal{O}_t(S) \Rightarrow (i+t) \in \mathcal{M}(S)$. As $r$ and $r'$ are both one-to-one mappings, we rewrite the conservation difference between $\mathcal{O}_t$ and $\mathcal{M}$ as:
+\begin{eqnarray}
+C(S;\mathcal{O}_t,r') - C(S;\mathcal{M},r) 
+\ &=& \ \mathbb{E}_{S'}\left[\frac{|\mathcal{O}_t(S)\cap\mathcal{O}_t(S')| - |\mathcal{M}(S)\cap\mathcal{M}(S')|}{L}\right] 
+\end{eqnarray}
+Expressing the cardinality of each intersection set above as the sum of its indicator variables gives:
+\begin{eqnarray}
+C(S;\mathcal{O}_t,r') - C(S;\mathcal{M},r)  \ &=& \ \mathbb{E}_{S'}\left[\sum_{i=1}^L \frac{\alpha_i(S', \mathcal{O}_t) - \alpha_i(S', \mathcal{M})}{L}\right] \nonumber \\
+&=& \mathbb{E}_{S'}\left[\sum_{i=1}^{L-t} \frac{\alpha_i(S', \mathcal{O}_t) - \alpha_{i+t}(S', \mathcal{M})}{L}\right] \nonumber \\
+&+& \mathbb{E}_{S'}\left[\sum_{i=1}^{t} \frac{\alpha_{L-i+1}(S', \mathcal{O}_t) - \alpha_i(S', \mathcal{M})}{L} \right] \nonumber \\
+&\leq& \mathbb{E}_{S'}\left[\sum_{i=1}^{t} \frac{\alpha_{L-i+1}(S', \mathcal{O}_t) - \alpha_i(S', \mathcal{M})}{L} \right] 
+\nonumber \\
+&\leq& \mathbb{E}_{S'}\left[\sum_{i=1}^{t} \frac{1}{L} \right] \ = \ \frac{t}{L} \ ,
+\end{eqnarray}
+where the first inequality follows from the bound in Eq.~\eqref{eq:alpha} and the second inequality is due to the fact that each $\alpha$ term is either $0$ or $1$. Rearranging the above result concludes our proof.
+\end{proof}
+\label{cor:2}
+\end{corollary}
+
+\vspace{-3mm}
+We note that since $t \leq k \ll L$ in most practical applications, Corollary~\ref{cor:2} almost surely corresponds to an exact upper bound. Finally, we state our main result in Theorem~\ref{theo:1} below, which establishes the first theoretical correspondence between minimizers and syncmers. That is, for every syncmer, there exists a corresponding minimizer scheme that simultaneously yields higher (worse) density and higher (better) conservation.
+
+\begin{theorem}[$\pi$-comparability defines a correspondence between minimizers and syncmers] For every syncmer scheme $(\mathcal{O}_t, r')$, there exists a comparable minimizer scheme $\mathcal{M}$ whose reporting function $r$ is translated from $r'$ with an offset $t$, such that the following bounds hold for every $S \in \Sigma^{L+k-1}$: 
+\begin{eqnarray}
+D(S; \mathcal{O}_t,r') \ \leq 
+ \ D(S; \mathcal{M},r) \qquad \text{and} \qquad  C(S; \mathcal{O}_t,r') \ \leq \ C(S; \mathcal{M},r) + \frac{t}{L} \ .
+\end{eqnarray}
+\begin{proof}
+The proof of Theorem~\ref{theo:1} follows directly from Corollary~\ref{cor:1} and Corollary~\ref{cor:2}.
+\end{proof}
+\label{theo:1}
+\end{theorem}
+\vspace{-5mm}
+\subsection{Unifying comparable schemes with masked minimizers}
+\label{sec:maskedmnz}
+Proposition~\ref{prop:1} establishes that $\mathcal{K}(S; \mathcal{O}_t,r') \subseteq \mathcal{K}(S; \mathcal{M},r)$ for any $\pi$-comparable pair of schemes $(\mathcal{O}_t, r')$ and $(\mathcal{M}, r)$. Additionally, it follows from the definitions of $\mathcal{O}_t$ and $\mathcal{M}$ that, for all $i \in [L]$, $m_\pi(\kappa^{w_k}_{i - t}) = t$ simultaneously implies $i \in \mathcal{M}(S)$ and $i-t \in \mathcal{O}_t(S)$. Thus, $m_\pi(\kappa^{w_k}_{i - t}) = t$ suffices as a sub-sampling rule to recover $\mathcal{O}_t(S)$ given $\mathcal{M}(S)$, or to recover $\mathcal{K}(S; \mathcal{O}_t,r')$ given $\mathcal{K}(S; \mathcal{M},r)$. We write this rule as:
+\begin{eqnarray}
+\mathcal{O}_t(S) = \{i - t \mid m_\pi(\kappa^{w_k}_{i-t}) = t\}_{i \in \mathcal{M}(S)} \ .
+\end{eqnarray}
+Let the output of the selector function $m_\pi$ be equivalently represented as a $w$-dimensional one-hot vector $\overrightarrow{m}_\pi(\kappa^{w_k}) \triangleq [\mathbb{I}(j=m_\pi(\kappa^{w_k}))]_{j\in[w]}$, where $\kappa^{w_k}$ is some arbitrary $(w,k)$-window in $S$. The above sub-sampling rule can then be rewritten as the point-wise multiplication between $\overrightarrow{m}_\pi(\kappa^{w_k}_{i-t})$ and the $w$-dimensional one-hot vector $\mathbf{e}_t=[\mathbb{I}(j=t)]_{j\in[w]}$, whose $1$-entry is at the $t^{\text{th}}$ position:
+\begin{eqnarray}
+\mathcal{O}_t(S) = \left\{
+i - t \mid \left\|    \overrightarrow{m}_\pi(\kappa^{w_k}_{i-t}) \otimes \mathbf{e}_t
+\right\|_1 > 0
+\right\}_{i \in \mathcal{M}(S)} \ .
+\end{eqnarray}
+In the above formulation, the positive $1$-norm condition checks if any position remains selected after filtering with $\mathbf{e}_t$ (in which case, it must be the $t^{\text{th}}$ position). Interestingly, this sub-sampling rule can be generalized by replacing $\mathbf{e}_t$ with any arbitrary $w$-dimensional binary mask $\nu \in \{0,1\}^w$. For example, setting $\nu=\mathbf{1}_w$ trivially recovers the standard minimizer scheme (without applying the offset $t$). Given a set of minimizer-sampled locations $\mathcal{M}(S)$,  varying $\nu$ yields a total of $2^w$ distinct $\pi$-comparable schemes, leading to a unifying method called \textit{masked minimizers}. We state its definition below.
+
+\vspace{-2mm}
+\subsubsection{Masked minimizers.} The sampling function of a masked minimizer scheme is characterized by a tuple of parameters $(w, k, \pi, \nu)$, where $w,k,\pi$ correspond to standard minimizer parameters, and $\nu\in\{0,1\}^w$ is a $w$-dimensional binary vector. The masked minimizer sampling function is given by:
+\begin{eqnarray}
+\mathcal{V}(S; w,k,\pi,\nu) \ \triangleq \ \{i + m_\pi(\kappa^{w_k}_i) \mid \zeta(\kappa^{w_k}_i, \nu)\}_{i\in[L_w]} \ ,
+\end{eqnarray}
+where $\zeta(\kappa^{w_k}_i, \nu) \triangleq \|\overrightarrow{m}_\pi(\kappa^{w_k}_i) \otimes \nu]\|_1 > 0$ denotes the event that the selection at the $i^{\text{th}}$ window remains sampled after applying the sub-sampling mask. We note that this definition does not factor in the offset $t$ to recover exactly the locations sampled by a comparable syncmers. We can, however, specify the reporting function $r(i)=(\kappa^{w_k}_{i-t},i-t)$ to recover $\mathcal{O}_t(S; w_k,k,\pi)$ from $\mathcal{V}(S)$. Thus, every syncmer and minimizer scheme can be written as a masked minimizer.
+\vspace{-3mm}

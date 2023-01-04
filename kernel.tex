@@ -1,0 +1,213 @@
+\label{c3:kernel}
+\section{Problem setting}
+For ease of exposition, we will ground our study in the context of the multivariate regression problem $y = g(\mathbf{x}) + \epsilon$ given real-valued observation tuples $\mathcal{D}=\{(\mathbf{x}_i, y_i) \in \mathbb{R}^{d+1}\}_{i \in [N]}$, where $d$ is the input dimension, $\epsilon$ denotes the observation noise and $g$ is the latent function to be inferred. Typically, the prior distribution of $g$ will be modelled such that a tractable posterior predictive distribution $p(g(\mathbf{x}_\ast) \mid \mathbf{x}_\ast, \mathcal{D})$ can be analytically derived. For example, in Gaussian process (GP) regression~\cite{Rasmussen06}, if $g$ is distributed by a GP prior~\cite{Rasmussen06} with zero mean and covariance function $k: \mathbb{R}^d \times \mathbb{R}^d \rightarrow \mathbb{R}$, such that for any finite subset of inputs $\{\mathbf{x}_{i_1}, \mathbf{x}_{i_2} \dots \mathbf{x}_{i_m}\}$ where $i_1, i_2 \dots i_m \in [N]$, we have:
+\begin{eqnarray}
+\left[
+\begin{array}{c}
+     g(\mathbf{x}_{i_1}) \\
+     g(\mathbf{x}_{i_2}) \\
+     \dots \\
+     g(\mathbf{x}_{i_m}) \\
+\end{array}
+\right]
+&\sim&
+\mathcal{N}
+\left(
+\left[
+\begin{array}{c}
+     0 \\
+     0 \\
+     \dots \\
+     0 \\
+\end{array}
+\right],
+\left[
+\begin{array}{cccc}
+     k(\mathbf{x}_{i_1}, \mathbf{x}_{i_1}) & k(\mathbf{x}_{i_1}, \mathbf{x}_{i_2}) &
+     \dots &
+     k(\mathbf{x}_{i_1}, \mathbf{x}_{i_m}) \\
+     
+     k(\mathbf{x}_{i_2}, \mathbf{x}_{i_1}) & k(\mathbf{x}_{i_2}, \mathbf{x}_{i_2}) &
+     \dots &
+     k(\mathbf{x}_{i_2}, \mathbf{x}_{i_m}) \\
+     
+     \dots &
+     \dots &
+     \dots &
+     \dots \\
+     
+     k(\mathbf{x}_{i_m}, \mathbf{x}_{i_1}) & k(\mathbf{x}_{i_m}, \mathbf{x}_{i_2}) &
+     \dots &
+     k(\mathbf{x}_{i_m}, \mathbf{x}_{i_m}) \\
+\end{array}
+\right]
+\right) \nonumber \ .
+\end{eqnarray}
+If the observation noise $\epsilon$ is Gaussian, then the posterior distribution $p(g(\mathbf{x}_\ast) \mid \mathbf{x}_\ast, \mathcal{D})$ is also Gaussian and can be tractably derived. This modelling choice of the covariance matrix, broadly referred to as the \emph{kernel trick}~\cite{hofmann2006support}, is widely used in the GP literature as well as many other probabilistic methods to provide non-linear transformations of data onto some high-dimensional feature space. However, since covariance matrices are required to be positive semi-definite, not all functions will suffice as a \emph{kernel function} in the above formulation. The formal condition for a kernel function $k$ to be valid is given as follows:
+
+\begin{definition}[Valid Kernel] 
+\label{c3-def:validkernel}
+A kernel function $k: \mathbb{R}^d \times \mathbb{R}^d \rightarrow \mathbb{R}$
+is valid if and only if for any subset of inputs $\{\mathbf{x}_{i1}, \mathbf{x}_{i2} \dots \mathbf{x}_{im}\}$ and for all $\gamma \in \mathbb{R}^m$ we have:
+\begin{eqnarray}
+ \sum_{u=1}^m\sum_{v=1}^m \gamma_u \gamma_v \cdot k(\mathbf{x}_{iu}, \mathbf{x}_{iv})  &\geq& 0 \ ,
+\end{eqnarray}
+\end{definition}
+where $\gamma_u$ and $\gamma_v$ respectively denotes the $u^{\text{th}}$ and $v^{\text{th}}$ entry of $\gamma$. 
+
+Although there are infinitely many constructions that satisfy the above condition, we can derive a systematic method to derive kernel functions via procedurally combining simple \emph{base} kernels to generate more sophisticated \emph{composite} kernels. As formalized in~\citet{Duvenaud13}, a popular set of kernel composition rules can be described as follows:
+\begin{itemize}
+\item Let $\mathcal{M}$ be the set of all valid kernel functions, we first select $\mathcal{K_B} \subset \mathcal{M}$ as a base kernel set. We say that $\mathcal{K_B}$ induces a set of composite kernels $\mathcal{K_C}$, such that $\mathcal{K_B} \subset \mathcal{K_C} \subseteq \mathcal{M}$. The membership of $\mathcal{K_C}$ is recursively defined via the following rules:
+
+\item Addition: if $k_1, k_2 \in \mathcal{K_C}$ and $\forall \mathbf{x,x'}: k_{+}(\mathbf{x}, \mathbf{x}') \triangleq k_1(\mathbf{x}, \mathbf{x}') + k_2(\mathbf{x}, \mathbf{x}')$, then $k_{+} \in \mathcal{K_C}$.
+
+\item Multiplication: if $k_1, k_2 \in \mathcal{K_C}$ and $\forall \mathbf{x,x'}: k_{+}(\mathbf{x}, \mathbf{x}') \triangleq k_1(\mathbf{x}, \mathbf{x}') \times k_2(\mathbf{x}, \mathbf{x}')$, then $k_{\times} \in \mathcal{K_C}$.
+
+\end{itemize}
+\noindent For ease of notation, we will drop the input argument and instead treat kernel functions as basic operands (e.g., $k_{+} = k_1 + k_2$ or $k_{\times} = k_1 \times k_2$) when referring to these composition rules. We further remark that the notation $k \in \mathcal{K_C}$ only implies the \emph{discrete form} of the kernel function, which does not include its learnable parameters. For example, consider the general squared exponential (SE) kernel $k_{\mathrm{SE}}\in\mathcal{K}_B$ such that $k_{\mathrm{SE}}(\mathbf{x},\mathbf{x'}) \triangleq \sigma^2\exp\left(\sum_{t=1}^d  \ell_t^{-2}\cdot(\mathbf{x}_t - \mathbf{x'}_t)^2\right)$ is parameterized by the signal variable $\sigma$ and the length-scale variables $\boldsymbol{\ell} = \{\ell_t\}_{t=1}^d$. We do not count different initializations of $k_{\mathrm{SE}}$ in $\mathcal{K_C}$ because the maximum likelihood estimation (MLE) of these parameters is well-studied and can be implicitly incorporated into the performance metric. Finally, the kernel selection problem can be formalized as follows:
+
+\begin{definition}[Kernel Selection]
+\label{c3-def:ksproblem}
+Let $\tau \triangleq \{\mathcal{K_B}, \mathcal{D}, \mathcal{A}\}$ describe a kernel selection task where $\mathcal{K_B}$ is the set of base kernels; $\mathcal{D}$ is the set of provided observations (i.e., train/validation/test data); and $\mathcal{A}$ denotes a kernel-based algorithm specified by some $k \in \mathcal{K_C}$ that is induced by $\mathcal{K_B}$. We further let $F_\tau: \mathcal{K_C} \rightarrow \mathbb{R}$ be the performance measuring function of this task, which (1) executes a well-defined algorithmic procedure to optimize the continuous parameters of some candidate kernel function $k$ (e.g., applying gradient descent update with respect to the MLE objective until convergence) and (2) returns the predictive accuracy evaluated on the test set. Then, the kernel selection problem is succinctly stated as:
+\begin{eqnarray}
+k_\ast &=& \underset{k \in \mathcal{K_C}}{\mathrm{argmax}} \  F_\tau(k) \ ,
+\end{eqnarray}
+where $k_\ast$ denotes the optimally performing kernel function with respect to $\tau$.
+\end{definition}
+
+\section{Related work}
+\subsection{Heuristic tree search}
+Leveraging the tree structure induced by the composition rules above, \citet{Duvenaud13}~approaches the KS problem by performing a heuristic tree search guided by the model likelihood score. Essentially, this heuristic approximates the performance measuring function in Definition~\ref{c3-def:ksproblem} by fixing the kernel parameters during the tree search. The kernel parameters (of the selected base functions) are then trained after the tree search concludes and used as initialization for the next round of tree search. This procedure is then repeated until convergence or a sufficiently good kernel function is found. Nonetheless, the parameters optimized with respect to one kernel function might not induce similar predictive behaviors on another function, thus it is inconclusive whether the model likelihood heuristic accurately estimates the kernel performance.
+
+\subsection{Extending Bayesian optimization}
+\citet{Malkomes16}~employs a special variant of the BO algorithm~\cite{Snoek12} in which the covariance function of the GP surrogate is specified by the Hellinger distance between  the kernel-induced posterior distributions. While this method partially alleviates the initialization problem from~\citet{Duvenaud13} by sampling kernel parameters from prior distributions to estimate the proposed Hellinger kernel, it cannot tractably update these priors as the BO algorithm acquires more observations. To address this problem,~\citet{Lu18}~first trains a variational autoencoder (VAE) model~\cite{Kingma13} to acquire a latent embedding space of kernel functions.~\citet{Lu18}~then employs BO to optimize for a latent representation that decodes into the optimal kernel function given the task data, thus bypassing the challenge of modelling a kernel function on discrete objects. 
+
+\section{Motivation} 
+We note that all of the above methods commonly require further restrictions of the candidate space to a finite set to ensure feasibility. Particularly,~\citet{Duvenaud13} assumes a finite-depth tree such that the tree search algorithm can successfully terminate. The BO approach of~\citet{Malkomes16} does not have a scalable solution for optimizing its acquisition function and has to confine the search space to a small number of active candidates, such that their acquisition values can be exhaustively computed. Similar to~\citet{Duvenaud13}, the VAE parameterization of~\citet{Lu18} also assumes that the length of any decoded kernel expression is upper-bounded.
+
+This section will now discuss a new approach to address the various shortcomings above through a more expressive reformulation that does not require any additional domain restriction. In particular, our framework, titled \textsc{DTerGenS}: Dynamic Termination Generative Search, casts the kernel selection problem as optimizing the weights of a kernel generative model, which explicitly mirrors the kernel composition rules via a recurrent formulation. As this weight domain is essentially a latent embedding space for kernel functions, our reformulation can be seen as taking a similar approach to~\citet{Lu18}, which alternatively employs a variational autoencoder~\cite{Kingma13} to construct this space.
+
+Unlike~\citet{Lu18}, which treats each kernel expression as an atomic instance to be embedded on a continuous latent space, our approach instead maps an \emph{entire subspace} of kernel expressions to each latent representation. Explicitly, this is achieved via formulating our generative model as an open-ended process which synthesizes an infinite trajectory of kernel expressions given a unique weight initialization. Our AAD objective can be seen as finding a subspace that contains the optimal model, rather than searching for the optimal model itself. This relaxation subsequently allows us to capture an unrestricted and significantly more expansive set of candidate kernel functions, compared to existing approaches such as~\citet{Duvenaud13,Malkomes16,Lu18}.
+
+Nonetheless, infinitely complex kernel expressions are generally unmeaningful and impractical to compute. Given the result of our relaxed objective, the remaining technical challenge is therefore to distill the optimal kernel function from the optimal trajectory. We address this challenge by further introducing a data-driven policy that learns to optimally terminate the generative model to maximize performance. Intuitively, the interplay between our generator model and its termination policy can be interpreted as a two-step decision making process, where the former determines a subspace of candidates and the latter learns to select candidates in this generative trajectory. We then show that this policy can be jointly learned along with the generative model parameters using a bi-level Bayesian optimization scheme.
+
+Last, we demonstrate that our method is able to produce complex kernels which significantly improve predictive performance of multiple predictive tasks over state-of-the-art structure search methods. Our results show a wider range of structures being explored by \textsc{DTerGenS} and more rapid rates of improvement as compared to other methods. Finally, we show that \textsc{DTerGenS} is also able to recover known well-performing kernels on artificially designed predictive tasks. The remainder of this chapter will now provide a summary of our technical approach, which will be presented in detail in Appendix~\ref{app:ks}.
+
+\section{Technical Approach}
+\label{c3-sec:method}
+Following the motivation above, we first state our representation of a kernel as the output of a generative process $G(\theta,\pi)$ parameterized by generative weights $\theta$ and termination policy $\pi$. Here, $\theta$ and $\pi$ respectively determine an infinite trajectory of kernel expressions to be synthesized and the cut-off point to return a finite expression. We now reformulate the KS objective as:
+\begin{eqnarray}
+\underset{k \in \mathcal{K_C}}{\argmax} \ F_{\tau}(k) &\simeq&  \underset{\theta \in \Theta, \pi \in \Pi}{\argmax} \left[ R_{\tau} (\theta,\pi) \ \triangleq \ (F_{\tau} \circ G)(\theta,\pi) \right] ,
+\label{c3-prop:reformulation}
+\end{eqnarray}
+\noindent where $\Theta$ and $\Pi$ denote the space of generative weights and termination policies; $\tau$ denotes the kernel selection task defined above; and $R_\tau$ conveniently denotes the composite function $F_\tau \circ G$. We note that a composite kernel expression can be written as a sum-of-products over base kernel units. That is, for any composite kernel $k \in \mathcal{K_C}$, there exists a finite collection of base kernels $k_{t,t'} \in \mathcal{K_B}$ such that:
+\begin{eqnarray}
+k &=& \sum_{t=1}^m\prod_{t'=1}^{n_t}k_{t, t'} \ .
+\label{c3-eq:general}
+\end{eqnarray}
+Any composite kernel expression can be viewed as a sub-tree in this search space defined by a \emph{primary chain} (i.e., the summation over product terms) connecting multiple \emph{secondary branches} (i.e., products of base kernel units). To generate such structures, we construct our generator $G$ by composing two nested recurrent neural networks, which alternately expand a candidate functional expression via (1)~generating a new secondary branch or (2)~generating a new base kernel function to an existing branch. An overview of our generator is given in Fig~\ref{c3-fig:generator}. We give the full details of our proposed generator in Appendix~\ref{app:ks}
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}
+  \node[io] (x0) {$h_0$};
+  \node[neuron,right=of x0] (x1)
+  {$h_{1}$};
+  \node[neuron,right=4em of x1] (dot)
+  {$\ldots$}; 
+  \node[neuron,right=4em of dot] (xM)
+  {$h_{m}$};
+  
+  \node[neuron,below=1.5em of x1] (x1_0)
+  {$h_{1,0}$};
+  \node[neuron,below=1em of x1_0] (x1_1)
+  {$h_{1,1}$};
+  \node[neuron,below=1em of x1_1] (dot2)
+  {$\ldots$};
+  \node[right=4.5em of dot2] (dot3)
+  {$\ldots$}; 
+  \node[io,right=4em of x1_1] (o1_1)
+  {$k_{1,1}$};
+  \node[neuron,below=1em of dot2] (x1_N)
+  {$h_{1, n_1}$};
+  \node[io,right=4em of x1_N] (o1_N)
+  {$k_{1, n_1}$};
+  
+  \node[neuron,below=1.5em of xM] (xM_0)
+  {$h_{m,0}$};
+  \node[neuron,below=1em of xM_0] (xM_1)
+  {$h_{m,1}$};
+  \node[neuron,below=1em of xM_1] (dot4)
+  {$\ldots$};
+  \node[right=4.5em of dot4] (dot5)
+  {$\ldots$}; 
+  \node[io,right=4em of xM_1] (oM_1)
+  {$k_{m,1}$};
+  \node[neuron,below=1em of dot4] (xM_N)
+  {$h_{m, n_1}$};
+  \node[io,right=4em of xM_N] (oM_N)
+  {$k_{m, n_m}$};
+  
+  \node[left=1.5em of dot2] (gs)
+  {$\mathcal{U}_s \equiv (G_s, \pi_s)$};
+  \node[above=1em of dot] (gp)
+  {$\mathcal{U}_p \equiv (G_p, \pi_p)$};
+  \node[group,fit={(x1) (dot) (xM)}] (gr1) {};
+  \node[group,fit={(x1_1) (dot2) (x1_N)}] (gr2) {};
+  \node[group,fit={(xM_1) (dot4) (xM_N)}] (gr3) {};
+  \draw[conn] (x0) -- (x1);
+  \draw[conn] (x1) -- (dot);
+  \draw[conn] (dot) -- (xM);
+  
+  \draw[conn] (x1) -- (x1_0);
+  \draw[conn] (x1_0) -- (x1_1);
+  \draw[conn] (x1_1) -- (dot2);
+  \draw[conn] (dot2) -- (x1_N);
+  \draw[conn] (x1_1) -- (o1_1);
+  \draw[conn] (x1_N) -- (o1_N);
+  
+  \draw[conn] (xM) -- (xM_0);
+  \draw[conn] (xM_0) -- (xM_1);
+  \draw[conn] (xM_1) -- (dot4);
+  \draw[conn] (dot4) -- (xM_N);
+  \draw[conn] (xM_1) -- (oM_1);
+  \draw[conn] (xM_N) -- (oM_N);
+\end{tikzpicture}
+\caption{Schematic of the kernel generator with nested units $\mathcal{U}_p$ and $\mathcal{U}_s$. Each component recursively computes its next hidden state and emission output using respective recurrent neural network $G_s$ and $G_p$. The termination probability at each generative step is determined by policies $\pi_p$ and $\pi_s$. The final candidate kernel expression is composed using Eq.~\eqref{c3-eq:general}.}
+\label{c3-fig:generator}
+\end{figure}
+Our termination policy $\pi$ is then given by a pair of functions that correspond to these component networks and are modelled by simple feed-forward neural networks. Specifically, each function takes as input an intermediate kernel expression and estimates the probability that its respective component network should be terminated to yield the optimal kernel function. 
+
+\begin{figure}
+\centering
+\begin{tikzpicture}
+  \node[group2, minimum size=1cm] (g) {\textsc{Generator} $G$};
+  \node[neuron, left=2em of g] (t) {$\theta$};
+  \node[neuron, below=2em of g] (p) {$\pi$};
+  \node[io, right=2em of g] (k) {$k$};
+  \node[io, right=2em of k] (f) {$F_{\tau}(k)$};
+  \draw[conn] (t) -- (g);
+  \draw[conn] (p) -- (g);
+  \draw[conn] (g) -- (k);
+  \draw[conn] (k) -- (f);
+  \draw [dashed,->] (f.south) to [out=-122,in=0] (p.east) node[below right=1.2em, rotate=8]{\ \ \ \ \ \ \ \textsc{PolicyUpdate}};
+  \draw [dashed,->] (p.west) node[below left=0.5em, rotate=-10]{\textsc{BayesOpt}\ \ } to [out=-185,in=-80] (t.south);
+\end{tikzpicture}
+\caption{The generic workflow of \textsc{DTerGenS}. Given policy $\pi$, we employ BO to obtain generative weight candidate $\theta$ (Section~\ref{app-ks-subsec:theta}). Using the observed generative trajectory, we alternately update the policy distribution (Section~\ref{app-ks-subsec:pi}).}
+\label{c3-fig:workflow}
+\end{figure}
+
+We propose a bi-level optimization scheme to sequentially optimize both these components. At every update iteration, we use the Bayesian optimization (BO) framework to obtain and evaluate a candidate generative weights $\theta$. Fixing a policy $\pi$ allows us to distill an concrete kernel expression from the induced generative trajectory and consequently obtain its respective performance. The partial trajectory obtained is then used to update the policy networks. A high-level overview of this algorithm is given in Fig.~\ref{c3-fig:workflow}. 
+
+Although the use of BO is similar to~\citet{Lu18} and~\citet{Malkomes16}, specific considerations need to be applied to account for the differences in settings between our proposal and these approaches. For instance, a major technical challenge that arises in our formulation is that the semantics of our latent representations will dynamically change between BO iterations as the policy $\pi$ is updated. Explicitly, even though each $\theta$ encodes a unique generative trajectory, the performance obtained by querying $R_\tau$ also depends on the early stop decisions drawn from the current policy $\pi$. As such, it is necessary that our surrogate model can accurately capture the correlation between different instantiations of $\pi$.
+
+To achieve this, we first impose Gaussian priors on the weights of our policy networks and further assume that termination policy $\pi$ is constructed at every iteration via sampling from the respective weight distributions. As each policy is now implicitly represented by a pair of distributions, we subsequently propose to estimate the correlation between two instantiations of $\pi$ via computing their corresponding Jensen-Shannon divergences, which are then incorporated into the BO surrogate model. Finally, given an observed (partial) trajectory at the end of each BO iteration, we further devise an update strategy for the weight distributions of $\pi$ via minimizing their expected deviation from the actual optimal stopping point. The full detail of our technical contributions and empirical demonstrations is given in Appendix~\ref{app:ks}.
+
+\section{Results}
+To demonstrate the performance of \textsc{DTerGenS}, we compare our method with the following benchmarks: (a) random search over the space of kernels with max length $L \leq 10$ (baseline); (b) \textsc{SVO}: Structure Variationally-Encoded Optimization~\cite{Lu18}, for which we train the VAE component using 25000 randomly generated kernel expressions with max length $L \leq 10$ (to show the advantage of generative search); and (c) our own algorithm with no stopping policy and fixing expression length $L = 2, 4, 8$. For (c), the termination of the secondary component is chosen at random, the termination of primary component is guaranteed upon reaching length $L$, and REMBO~\cite{Wang16} is used to optimize generative weights $\theta$. These benchmarks serve as ablation studies to demonstrate the advantage of having adaptive termination policies for the generative components. 
+
+We first demonstrate that our kernel selection framework can accurately recover a synthetic kernel structure given observations simulated by its corresponding distribution. In particular, we arbitrarily construct several kernels with different complexities and show that in all scenarios, our method \textsc{DTerGens} outperformed other benchmarks in terms of recovery error (i.e., the Frobenius-norm of the distance between ground truth annd reconstructed covariance matrices). 
+
+We further demonstrate the effectiveness of our approach on several real-world regression datasets, including: (1)~the DIABETES dataset~\cite{UCI_diabetes_data}, which contains 442 diabetes patient records; (2)~the MAUNA LOA dataset~\cite{mauna_loa_data}, which measures monthly average $\textrm{CO}_2$ concentration at the Mauna-Loa Observatory over 42 years; and (3)~the PROTEIN dataset~\cite{UCI_protein_data}, which features 45730 protein tertiary structures. Our empirical results show that \textsc{DTerGens} outperformed other benchmarks in terms of prediction errors, the implying the discovery of better kernel structures. 
+
+The full detail of our experiments are given in Appendix~\ref{app:ks}. This work has been published at the International Conference on Machine Learning (2020).
